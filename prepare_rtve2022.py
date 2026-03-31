@@ -9,7 +9,7 @@ Hace todo en un solo comando:
   - Genera manifest.tsv (audio_path<TAB>transcripción)
   - Genera tokenizer_corpus.txt (una transcripción por línea)
 
-Ejemplo rápido (descarga ~11h de dev1):
+Ejemplo rápido (descarga ~11 horas de dev1):
   python prepare_rtve2022.py --split dev1 --output_dir ./data/rtve2022 --max_samples 1000
 Luego entrena:
   python train.py --corpus_dir ./data/rtve2022/manifest.tsv --tokenizer_corpus ./data/rtve2022/tokenizer_corpus --output_dir ./checkpoints --fp16
@@ -21,6 +21,7 @@ import sys
 import tarfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 
@@ -41,7 +42,7 @@ def human_size(num: float) -> str:
     return f"{num:,.1f}TB"
 
 
-def download(url: str, dest: Path) -> None:
+def download(url: str, dest: Path, timeout: float = 30.0) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
         print(f"[skip] Archivo ya presente: {dest}")
@@ -49,7 +50,7 @@ def download(url: str, dest: Path) -> None:
 
     print(f"[descargando] {url}")
     try:
-        with urlopen(url) as r, open(dest, "wb") as f:
+        with urlopen(url, timeout=timeout) as r, open(dest, "wb") as f:
             total = r.length or 0
             read = 0
             block = 1024 * 1024
@@ -66,7 +67,7 @@ def download(url: str, dest: Path) -> None:
                     sys.stdout.write(f"\r  {human_size(read)}")
                 sys.stdout.flush()
         sys.stdout.write("\n")
-    except Exception as exc:
+    except (HTTPError, URLError, TimeoutError) as exc:
         if dest.exists():
             dest.unlink()
         raise RuntimeError(f"No se pudo descargar {url}: {exc}") from exc
@@ -156,7 +157,8 @@ def write_outputs(pairs: List[Tuple[Path, str]], out_dir: Path) -> Tuple[Path, P
     return manifest, tokenizer_dir
 
 
-def checksum(path: Path, algorithm: str = "md5") -> str:
+def checksum(path: Path, algorithm: str = "sha256") -> str:
+    """Checksum de integridad (no para seguridad)."""
     h = hashlib.new(algorithm)
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
@@ -185,7 +187,7 @@ def main():
     print(f"==> Split: {args.split}")
     print(f"==> Descarga en: {archive_path}")
     download(url, archive_path)
-    print(f"[ok] Descargado ({human_size(archive_path.stat().st_size)}) md5={checksum(archive_path)[:8]}…")
+    print(f"[ok] Descargado ({human_size(archive_path.stat().st_size)}) sha256={checksum(archive_path)[:12]}…")
 
     extracted_root = extract(archive_path, output_dir / "raw" / args.split)
 

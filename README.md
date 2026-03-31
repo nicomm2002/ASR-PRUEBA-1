@@ -108,7 +108,26 @@ python inference.py \
   --audio audio1.wav audio2.wav
 ```
 
-### 3. Uso como biblioteca Python
+### 3. Preparar RTVE 2022 en un solo comando
+
+Descarga y prepara un subconjunto de RTVE 2022 (OpenSLR-128) listo para `train.py`.  
+Por defecto usa `dev1`, el split más pequeño.
+
+```bash
+python prepare_rtve2022.py \
+  --split dev1 \
+  --output_dir ./data/rtve2022 \
+  --max_samples 1000   # opcional: limitar ejemplos para prueba rápida
+
+# Luego entrena con el manifiesto generado:
+python train.py \
+  --corpus_dir ./data/rtve2022/manifest.tsv \
+  --tokenizer_corpus ./data/rtve2022/tokenizer_corpus \
+  --output_dir ./checkpoints \
+  --fp16
+```
+
+### 4. Uso como biblioteca Python
 
 ```python
 import torch
